@@ -60,3 +60,4 @@ if (mysqli_query($conn, $insert_sql)) {
         "message" => "Gagal register: " . mysqli_error($conn)
     ]);
 }
+
