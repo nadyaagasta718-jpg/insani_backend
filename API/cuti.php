@@ -20,6 +20,7 @@ $action = $_GET['action'] ?? $_POST['action'] ?? '';
 if ($action === 'jenis_cuti') {
     $data = [];
 
+    $q = mysqli_query($conn,"
         SELECT fs_kd_jenis_cuti, fs_nm_jenis_cuti 
         FROM td_jenis_cuti
     ");
