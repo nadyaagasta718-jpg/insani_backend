@@ -79,7 +79,6 @@ $stmt->bind_result(
 
 $stmt->fetch();
 
-/* ===== CEK PASSWORD ===== */
 if (strlen($password_db) === 32) {
     if (md5($password) !== $password_db) {
         echo json_encode(["status"=>false,"message"=>"Username atau password salah"]);
