@@ -64,3 +64,71 @@ echo json_encode([
     "status" => true,
     "data" => $data
 ]);
+
+
+//approve
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $kd_trs_order = $_POST['fs_kd_trs'] ?? '';
+    $kd_atasan = $_POST['fs_kd_peg_atasan'] ?? '';
+
+    if($kd_trs_order == '' || $kd_atasan == '') {
+        echo json_encode([
+            "status" => false,
+            "message" => "Kode cuti dan kode atasan tidak boleh kosong"
+        ]);
+        exit;
+    }
+
+    $sql_order = "SELECT * FROM td_trs_order_cuti
+    WHERE fs_kd_trs = '$kd_trs_order'
+    AND fs_kd_peg_atasan = '$kd_atasan'";
+    $query_order = mysqli_query($conn, $sql_order);
+    $order = mysqli_fetch_assoc($query_order);
+
+    if(!$order) {
+        echo json_encode([
+            "status" => false,
+            "message" => "Order cuti tidak ditemukan"
+        ]);
+        exit;   
+}
+
+$sql_insert = "INSERT INTO td_trs_cuti
+(fs_kd_peg, fs_kd_jenis_cuti, fd_tgl_mulai, fd_tgl_akhir, fs_keterangan, fd_tgl_trs)
+VALUES(
+'{$order['fs_kd_peg']}',
+'{$order['fs_kd_jenis_cuti']}',
+'{$order['fd_tgl_mulai']}',
+'{$order['fd_tgl_akhir']}',
+'{$order['fs_keterangan']}',
+NOW()
+)";
+
+$insert = mysqli_query($conn, $sql_insert);
+
+if(!insert) {
+    echo json_encode([
+        "status" => false,
+        "message" => "gagal menyimpan cuti",
+        "error" => mysqli_error($conn)
+    ]);
+    exit;
+}
+ 
+$sql_update = "UPDATE td_trs_order_cuti
+SET fb_approve = 1
+WHERE fs_kd_trs = '$kd_trs_order'";
+mysqli_query($conn, $sql_update);
+
+echo json_encode([
+    "status" => true,
+    "message" => "cuti berhasil disetujui"
+]);
+exit;
+}
+
+echo json_encode([
+    "status" => false,
+    "message" => "method tidak didukung"
+]);
+
