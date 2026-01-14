@@ -2,12 +2,10 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
-
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -16,49 +14,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config/database.php";
 
-
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
+
 
 if ($action === 'jenis_cuti') {
     $data = [];
-    $q = mysqli_query($conn, "SELECT fs_kd_jenis_cuti, fs_nm_jenis_cuti FROM td_jenis_cuti");
 
-    while ($r = mysqli_fetch_assoc($q)) {
-        $data[] = $r;
+    $query = mysqli_query(
+        $conn,
+        "SELECT fs_kd_jenis_cuti, fs_nm_jenis_cuti FROM td_jenis_cuti"
+    );
+
+    while ($row = mysqli_fetch_assoc($query)) {
+        $data[] = $row;
     }
 
-    echo json_encode(["status" => true, "data" => $data]);
+    echo json_encode([
+        "status" => true,
+        "data"   => $data
+    ]);
     exit;
 }
 
 
 if ($action === 'submit') {
-    $kd_peg    = $_POST['kd_peg'] ?? '';
-    $kd_jenis  = $_POST['kd_jenis_cuti'] ?? '';
-    $tgl_mulai = $_POST['tgl_mulai'] ?? '';
-    $tgl_akhir = $_POST['tgl_selesai'] ?? '';
-    $ket       = $_POST['keterangan'] ?? '';
+    $kdPeg    = $_POST['kd_peg'] ?? '';
+    $kdJenis  = $_POST['kd_jenis_cuti'] ?? '';
+    $tglMulai = $_POST['tgl_mulai'] ?? '';
+    $tglAkhir = $_POST['tgl_selesai'] ?? '';
+    $ket      = $_POST['keterangan'] ?? '';
 
-    if (!$kd_peg || !$kd_jenis || !$tgl_mulai || !$tgl_akhir) {
-        echo json_encode(["status" => false, "message" => "Data belum lengkap"]);
-        exit;
-    }
-
-   
-    $qA = mysqli_query($conn, "SELECT fs_kd_peg_atasan FROM td_peg WHERE fs_kd_peg='$kd_peg' LIMIT 1");
-    $rowA = mysqli_fetch_assoc($qA);
-    $atasan = $rowA['fs_kd_peg_atasan'] ?? '';
-
-    if (!$atasan) {
-        echo json_encode(["status" => false, "message" => "Atasan belum diset"]);
+    if (!$kdPeg || !$kdJenis || !$tglMulai || !$tglAkhir) {
+        echo json_encode([
+            "status"  => false,
+            "message" => "Data belum lengkap"
+        ]);
         exit;
     }
 
     
-    $kode = "TRS" . date("YmdHis");
+    $qAtasan = mysqli_query(
+        $conn,
+        "SELECT fs_kd_peg_atasan 
+         FROM td_peg 
+         WHERE fs_kd_peg='$kdPeg' 
+         LIMIT 1"
+    );
 
-    $sql = "
-        INSERT INTO td_trs_order_cuti (
+    $rowAtasan = mysqli_fetch_assoc($qAtasan);
+    $kdAtasan  = $rowAtasan['fs_kd_peg_atasan'] ?? '';
+
+    if (!$kdAtasan) {
+        echo json_encode([
+            "status"  => false,
+            "message" => "belum ditemukan atasan"
+        ]);
+        exit;
+    }
+
+    $kodeTrs = "TRS" . date("YmdHis");
+
+    mysqli_query(
+        $conn,
+        "INSERT INTO td_trs_order_cuti (
             fs_kd_trs, fd_tgl_trs, fs_jam_trs,
             fs_kd_peg, fs_kd_peg_atasan,
             fd_tgl_mulai, fs_jam_mulai,
@@ -66,29 +84,29 @@ if ($action === 'submit') {
             fs_kd_jenis_cuti, fs_keterangan,
             fb_approved, fb_ditolak
         ) VALUES (
-            '$kode', CURDATE(), CURTIME(),
-            '$kd_peg', '$atasan',
-            '$tgl_mulai','00:00:00',
-            '$tgl_akhir','23:59:59',
-            '$kd_jenis','$ket',0,0
-        )
-    ";
+            '$kodeTrs', CURDATE(), CURTIME(),
+            '$kdPeg', '$kdAtasan',
+            '$tglMulai','00:00:00',
+            '$tglAkhir','23:59:59',
+            '$kdJenis','$ket',0,0
+        )"
+    );
 
-    if (mysqli_query($conn, $sql)) {
-        echo json_encode(["status" => true, "message" => "Cuti dikirim ke atasan"]);
-    } else {
-        echo json_encode(["status" => false, "error" => mysqli_error($conn)]);
-    }
+    echo json_encode([
+        "status"  => true,
+        "message" => "Cuti berhasil diajukan"
+    ]);
     exit;
 }
 
-
+// list cuti
 if ($action === 'list') {
-    $data = [];
-    $kd_peg = $_GET['kd_peg'] ?? '';
+    $data  = [];
+    $kdPeg = $_GET['kd_peg'] ?? '';
 
-    $q = mysqli_query($conn, "
-        SELECT 
+    $query = mysqli_query(
+        $conn,
+        "SELECT 
             o.fs_kd_trs,
             j.fs_nm_jenis_cuti,
             o.fd_tgl_mulai,
@@ -98,66 +116,99 @@ if ($action === 'list') {
                 WHEN o.fb_ditolak = 1 THEN 'REJECTED'
                 WHEN o.fb_approved = 1 THEN 'APPROVED'
                 ELSE 'PENDING'
-            END AS status
-        FROM td_trs_order_cuti o
-        JOIN td_jenis_cuti j ON o.fs_kd_jenis_cuti = j.fs_kd_jenis_cuti
-        WHERE o.fs_kd_peg='$kd_peg'
-        ORDER BY o.fd_tgl_trs DESC
-    ");
+            END AS fs_status
+         FROM td_trs_order_cuti o
+         JOIN td_jenis_cuti j 
+           ON o.fs_kd_jenis_cuti = j.fs_kd_jenis_cuti
+         WHERE o.fs_kd_peg='$kdPeg'
+         ORDER BY o.fd_tgl_trs DESC"
+    );
 
-    while ($r = mysqli_fetch_assoc($q)) {
-        $data[] = $r;
+    while ($row = mysqli_fetch_assoc($query)) {
+        $data[] = $row;
     }
 
-    echo json_encode(["status" => true, "data" => $data]);
+    echo json_encode([
+        "status" => true,
+        "data"   => $data
+    ]);
     exit;
 }
 
-
+// list cuti atasan
 if ($action === 'list_atasan') {
-    $data = [];
-    $kd_atasan = $_GET['kd_peg'] ?? '';
+    $data      = [];
+    $kdAtasan  = $_GET['kd_peg'] ?? '';
 
-    $q = mysqli_query($conn, "
-        SELECT 
+    $query = mysqli_query(
+        $conn,
+        "SELECT 
             o.fs_kd_trs,
             p.fs_nm_peg,
             j.fs_nm_jenis_cuti,
             o.fd_tgl_mulai,
             o.fd_tgl_akhir,
-            o.fs_keterangan
-        FROM td_trs_order_cuti o
-        JOIN td_peg p ON o.fs_kd_peg = p.fs_kd_peg
-        JOIN td_jenis_cuti j ON o.fs_kd_jenis_cuti = j.fs_kd_jenis_cuti
-        WHERE o.fs_kd_peg_atasan='$kd_atasan'
-          AND o.fb_approved=0
-          AND o.fb_ditolak=0
-        ORDER BY o.fd_tgl_trs DESC
-    ");
+            o.fs_keterangan,
+            CASE
+                WHEN o.fb_ditolak = 1 THEN 'REJECTED'
+                WHEN o.fb_approved = 1 THEN 'APPROVED'
+                ELSE 'PENDING'
+            END AS fs_status
+         FROM td_trs_order_cuti o
+         JOIN td_peg p 
+           ON o.fs_kd_peg = p.fs_kd_peg
+         JOIN td_jenis_cuti j 
+           ON o.fs_kd_jenis_cuti = j.fs_kd_jenis_cuti
+         WHERE o.fs_kd_peg_atasan='$kdAtasan'
+         ORDER BY o.fd_tgl_trs DESC"
+    );
 
-    while ($r = mysqli_fetch_assoc($q)) {
-        $data[] = $r;
+    while ($row = mysqli_fetch_assoc($query)) {
+        $data[] = $row;
     }
 
-    echo json_encode(["status" => true, "data" => $data]);
+    echo json_encode([
+        "status" => true,
+        "data"   => $data
+    ]);
     exit;
 }
 
-
+//approve $ reject
 if ($action === 'approve' || $action === 'reject') {
-    $kd_trs = $_POST['kd_trs'] ?? '';
+    $kdTrs    = $_POST['kd_trs'] ?? '';
+    $kdAtasan = $_POST['kd_peg'] ?? '';
 
-    if (!$kd_trs) {
-        echo json_encode(["status" => false, "message" => "kd_trs kosong"]);
+    if (!$kdTrs || !$kdAtasan) {
+        echo json_encode([
+            "status"  => false,
+            "message" => "Parameter tidak lengkap"
+        ]);
         exit;
     }
 
-    $field = ($action === 'approve') ? 'fb_approved=1' : 'fb_ditolak=1';
+    $field = ($action === 'approve')
+        ? 'fb_approved = 1'
+        : 'fb_ditolak = 1';
 
-    mysqli_query($conn, "UPDATE td_trs_order_cuti SET $field WHERE fs_kd_trs='$kd_trs'");
+    mysqli_query(
+        $conn,
+        "UPDATE td_trs_order_cuti
+         SET $field
+         WHERE fs_kd_trs='$kdTrs'
+           AND fs_kd_peg_atasan='$kdAtasan'
+           AND fb_approved=0
+           AND fb_ditolak=0"
+    );
 
-    echo json_encode(["status" => true, "message" => "Berhasil"]);
+    echo json_encode([
+        "status"  => true,
+        "message" => "Berhasil"
+    ]);
     exit;
 }
 
-echo json_encode(["status" => false, "message" => "Action tidak dikenal"]);
+echo json_encode([
+    "status"  => false,
+    "message" => "Action tidak dikenal"
+]);
