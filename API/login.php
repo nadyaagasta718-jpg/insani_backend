@@ -94,7 +94,7 @@ if (strlen($password_db) === 32) {
 
 if ((int)$jml_bawahan > 0) {
     $role = 'HRD';
-} elseif ($kd_lokasi === 'L002') {
+} elseif ($kd_lokasi === 'L003') {
     $role = 'HRD';
 } elseif ($kd_lokasi === 'L009') {
     $role = 'TU';

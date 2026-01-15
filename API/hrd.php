@@ -69,11 +69,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     exit;
 }
 
-//aprove
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $kd_trs_order = $_POST['fs_kd_trs'] ?? '';
     $kd_atasan    = $_POST['fs_kd_peg_atasan'] ?? '';
+    $action       = $_POST['action'] ?? '';
 
     if ($kd_trs_order == '' || $kd_atasan == '') {
         echo json_encode([
@@ -87,9 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         SELECT *
         FROM td_trs_order_cuti
         WHERE fs_kd_trs = '$kd_trs_order'
-        AND fs_kd_peg_atasan = '$kd_atasan'
-        AND fb_approved = 0
-        AND fb_ditolak = 0
+          AND fs_kd_peg_atasan = '$kd_atasan'
+          AND fb_approved = 0
+          AND fb_ditolak = 0
     ";
 
     $query_order = mysqli_query($conn, $sql_order);
@@ -103,45 +104,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $sql_insert = "
-        INSERT INTO td_trs_cuti
-        (fs_kd_peg, fs_kd_jenis_cuti, fd_tgl_mulai, fd_tgl_akhir, fs_keterangan, fd_tgl_trs)
-        VALUES (
-            '{$order['fs_kd_peg']}',
-            '{$order['fs_kd_jenis_cuti']}',
-            '{$order['fd_tgl_mulai']}',
-            '{$order['fd_tgl_akhir']}',
-            '{$order['fs_keterangan']}',
-            NOW()
-        )
-    ";
+    // approve
+    if ($action === 'approve') {
 
-    $insert = mysqli_query($conn, $sql_insert);
+        $sql_insert = "
+            INSERT INTO td_trs_cuti
+            (fs_kd_peg, fs_kd_jenis_cuti, fd_tgl_mulai, fd_tgl_akhir, fs_keterangan, fd_tgl_trs)
+            VALUES (
+                '{$order['fs_kd_peg']}',
+                '{$order['fs_kd_jenis_cuti']}',
+                '{$order['fd_tgl_mulai']}',
+                '{$order['fd_tgl_akhir']}',
+                '{$order['fs_keterangan']}',
+                NOW()
+            )
+        ";
 
-    if (!$insert) {
+        if (!mysqli_query($conn, $sql_insert)) {
+            echo json_encode([
+                "status" => false,
+                "message" => "Gagal menyimpan cuti",
+                "error" => mysqli_error($conn)
+            ]);
+            exit;
+        }
+
+        mysqli_query($conn, "
+            UPDATE td_trs_order_cuti
+            SET fb_approved = 1
+            WHERE fs_kd_trs = '$kd_trs_order'
+        ");
+
         echo json_encode([
-            "status" => false,
-            "message" => "Gagal menyimpan cuti",
-            "error" => mysqli_error($conn)
+            "status" => true,
+            "message" => "Cuti berhasil disetujui"
         ]);
         exit;
     }
 
-    mysqli_query($conn, "
-        UPDATE td_trs_order_cuti
-        SET fb_approved = 1
-        WHERE fs_kd_trs = '$kd_trs_order'
-    ");
+    // reject
+    if ($action === 'reject') {
+
+        $alasan = $_POST['alasan'] ?? '';
+
+        if ($alasan == '') {
+            echo json_encode([
+                "status" => false,
+                "message" => "Alasan penolakan wajib diisi"
+            ]);
+            exit;
+        }
+
+        
+        mysqli_query($conn, "
+            UPDATE td_trs_order_cuti
+            SET fb_ditolak = 1,
+                fs_alasan_ditolak = '$alasan',
+                fd_tgl_trs_ditolak = CURDATE(),
+                fs_jam_trs_ditolak = CURTIME(),
+                fs_kd_petugas_ditolak = '$kd_atasan'
+            WHERE fs_kd_trs = '$kd_trs_order'
+              AND fs_kd_peg_atasan = '$kd_atasan'
+        ");
+
+        echo json_encode([
+            "status" => true,
+            "message" => "Cuti berhasil ditolak"
+        ]);
+        exit;
+    }
 
     echo json_encode([
-        "status" => true,
-        "message" => "Cuti berhasil disetujui"
+        "status" => false,
+        "message" => "Action tidak dikenali"
     ]);
     exit;
 }
-
-echo json_encode([
-    "status" => false,
-    "message" => "Method tidak didukung"
-]);
-

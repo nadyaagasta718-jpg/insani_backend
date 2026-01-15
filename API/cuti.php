@@ -52,7 +52,6 @@ if ($action === 'submit') {
         exit;
     }
 
-    
     $qAtasan = mysqli_query(
         $conn,
         "SELECT fs_kd_peg_atasan 
@@ -99,7 +98,7 @@ if ($action === 'submit') {
     exit;
 }
 
-// list cuti
+// list cuti pegawai
 if ($action === 'list') {
     $data  = [];
     $kdPeg = $_GET['kd_peg'] ?? '';
@@ -112,6 +111,7 @@ if ($action === 'list') {
             o.fd_tgl_mulai,
             o.fd_tgl_akhir,
             o.fs_keterangan,
+            o.fs_alasan_ditolak, 
             CASE
                 WHEN o.fb_ditolak = 1 THEN 'REJECTED'
                 WHEN o.fb_approved = 1 THEN 'APPROVED'
@@ -137,8 +137,8 @@ if ($action === 'list') {
 
 // list cuti atasan
 if ($action === 'list_atasan') {
-    $data      = [];
-    $kdAtasan  = $_GET['kd_peg'] ?? '';
+    $data     = [];
+    $kdAtasan = $_GET['kd_peg'] ?? '';
 
     $query = mysqli_query(
         $conn,
@@ -174,7 +174,7 @@ if ($action === 'list_atasan') {
     exit;
 }
 
-//approve $ reject
+
 if ($action === 'approve' || $action === 'reject') {
     $kdTrs    = $_POST['kd_trs'] ?? '';
     $kdAtasan = $_POST['kd_peg'] ?? '';
@@ -212,3 +212,4 @@ echo json_encode([
     "status"  => false,
     "message" => "Action tidak dikenal"
 ]);
+// 
