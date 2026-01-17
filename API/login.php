@@ -49,7 +49,7 @@ LIMIT 1
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
     echo json_encode([
-        "status" => false,
+        "status" => false, 
         "error" => $conn->error
     ]);
     exit;
