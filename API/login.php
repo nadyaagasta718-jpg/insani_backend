@@ -16,7 +16,6 @@ require_once "../config/database.php";
 
 $username = trim($_POST['username'] ?? '');
 $password = trim($_POST['password'] ?? '');
-
 if ($username === '' || $password === '') {
     echo json_encode([
         "status" => false,
@@ -93,7 +92,7 @@ if (strlen($password_db) === 32) {
 
 
 if ((int)$jml_bawahan > 0) {
-    $role = 'HRD';
+    $role = 'ATASAN';
 } elseif ($kd_lokasi === 'L003') {
     $role = 'HRD';
 } elseif ($kd_lokasi === 'L009') {
