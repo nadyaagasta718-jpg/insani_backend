@@ -24,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             o.fs_kd_trs,
             o.fs_kd_peg,
             p.fs_nm_peg,
+            l.fs_nm_lokasi,
             j.fs_nm_jenis_cuti,
             o.fd_tgl_mulai,
             o.fd_tgl_akhir,
@@ -31,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         FROM td_trs_order_cuti o
         JOIN td_peg p ON o.fs_kd_peg = p.fs_kd_peg
         JOIN td_jenis_cuti j ON o.fs_kd_jenis_cuti = j.fs_kd_jenis_cuti
+       LEFT JOIN td_lokasi l ON p.fs_kd_lokasi = l.fs_kd_lokasi
         WHERE o.fb_approved = 1
           AND o.fb_ditolak = 0
         ORDER BY o.fd_tgl_trs DESC

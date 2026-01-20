@@ -16,6 +16,7 @@ require_once "../config/database.php";
 
 $username = trim($_POST['username'] ?? '');
 $password = trim($_POST['password'] ?? '');
+
 if ($username === '' || $password === '') {
     echo json_encode([
         "status" => false,
@@ -48,7 +49,7 @@ LIMIT 1
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
     echo json_encode([
-        "status" => false, 
+        "status" => false,
         "error" => $conn->error
     ]);
     exit;
@@ -90,13 +91,12 @@ if (strlen($password_db) === 32) {
     }
 }
 
-
-if ((int)$jml_bawahan > 0) {
-    $role = 'ATASAN';
-} elseif ($kd_lokasi === 'L003') {
+if ($kd_lokasi === 'L003') {
     $role = 'HRD';
 } elseif ($kd_lokasi === 'L009') {
     $role = 'TU';
+} elseif ((int)$jml_bawahan > 0) {
+    $role = 'ATASAN';
 } else {
     $role = 'PEGAWAI';
 }
@@ -114,5 +114,4 @@ echo json_encode([
         "jml_bawahan" => (int)$jml_bawahan
     ]
 ]);
-
 
