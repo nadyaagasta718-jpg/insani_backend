@@ -129,15 +129,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        mysqli_query($conn, "
+             mysqli_query($conn, "
             UPDATE td_trs_order_cuti
-            SET fb_approved = 1
+            SET 
+                fb_approved = 1,
+                fs_kd_disetujui = '$kd_atasan',
+                fs_kd_petugas_approved = '$kd_atasan',
+                fd_tgl_trs_approved = CURDATE(),
+                fs_jam_trs_approved = CURTIME()
             WHERE fs_kd_trs = '$kd_trs_order'
+              AND fs_kd_peg_atasan = '$kd_atasan'
+              AND fb_approved = 0
+              AND fb_ditolak = 0
         ");
 
         echo json_encode([
             "status" => true,
-            "message" => "Cuti berhasil disetujui"
+            "message" => "Cuti berhasil disetujui atasan"
         ]);
         exit;
     }
