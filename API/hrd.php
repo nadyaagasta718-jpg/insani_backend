@@ -3,7 +3,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, OPTIONS");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 // verif
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kd_trs = $_POST['fs_kd_trs'] ?? '';
-    if (kd_trs == ''){
+    if ($kd_trs == ''){
         echo json_encode([
             "status" => false,
             "message" => "Kode transaksi wajib diisi"
