@@ -19,24 +19,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     $data = [];
 
-    $sql = "
-        SELECT
-            o.fs_kd_trs,
-            o.fs_kd_peg,
-            p.fs_nm_peg,
-            l.fs_nm_lokasi,
-            j.fs_nm_jenis_cuti,
-            o.fd_tgl_mulai,
-            o.fd_tgl_akhir,
-            o.fs_keterangan
-        FROM td_trs_order_cuti o
-        JOIN td_peg p ON o.fs_kd_peg = p.fs_kd_peg
-        JOIN td_jenis_cuti j ON o.fs_kd_jenis_cuti = j.fs_kd_jenis_cuti
-       LEFT JOIN td_lokasi l ON p.fs_kd_lokasi = l.fs_kd_lokasi
-        WHERE o.fb_approved = 1
-          AND o.fb_ditolak = 0
-        ORDER BY o.fd_tgl_trs DESC
-    ";
+  $sql = "
+    SELECT
+        o.fs_kd_trs,
+        o.fs_kd_peg,
+        p.fs_nm_peg,
+        p.fs_kd_lokasi,
+        l.fs_nm_lokasi,
+        j.fs_nm_jenis_cuti,
+        o.fd_tgl_mulai,
+        o.fd_tgl_akhir,
+        o.fs_keterangan
+    FROM td_trs_order_cuti o
+    JOIN td_peg p ON o.fs_kd_peg = p.fs_kd_peg
+    JOIN td_jenis_cuti j ON o.fs_kd_jenis_cuti = j.fs_kd_jenis_cuti
+    LEFT JOIN td_lokasi l ON p.fs_kd_lokasi = l.fs_kd_lokasi
+    WHERE o.fb_approved = 1
+      AND o.fb_ditolak = 0
+    ORDER BY o.fd_tgl_trs DESC
+";
+
 
     $q = mysqli_query($conn, $sql);
 
@@ -88,18 +90,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         exit;
     }
-       mysqli_query($conn, "
-        INSERT INTO td_trs_cuti
-        (fs_kd_peg, fs_kd_jenis_cuti, fd_tgl_mulai, fd_tgl_akhir, fs_keterangan, fd_tgl_trs)
-        VALUES (
+         $insert = mysqli_query($conn, "
+        INSERT INTO td_trs_cuti (
+            fs_kd_peg,
+            fs_kd_trs_order,
+            fs_kd_jenis_cuti,
+            fs_keterangan,
+            fd_tgl_mulai,
+            fs_jam_mulai,
+            fd_tgl_akhir,
+            fs_jam_akhir,
+            fd_tgl_trs,
+            fs_jam_trs,
+            fs_kd_petugas
+        ) VALUES (
             '{$order['fs_kd_peg']}',
+            '{$order['fs_kd_trs']}',
             '{$order['fs_kd_jenis_cuti']}',
-            '{$order['fd_tgl_mulai']}',
-            '{$order['fd_tgl_akhir']}',
             '{$order['fs_keterangan']}',
-            NOW()
+            '{$order['fd_tgl_mulai']}',
+            '00:00:00',
+            '{$order['fd_tgl_akhir']}',
+            '23:59:59',
+            CURDATE(),
+            CURTIME(),
+            '{$order['fs_kd_petugas_approved']}'
         )
     ");
+
+    if (!$insert) {
+        echo json_encode([
+            "status" => false,
+            "message" => mysqli_error($conn)
+        ]);
+        exit;
+    }
 
     echo json_encode([
         "status" => true,
@@ -112,3 +137,4 @@ echo json_encode([
     "status" => false,
     "message" => "Method tidak dikenali"
 ]);
+
