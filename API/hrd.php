@@ -14,7 +14,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config/database.php";
 
-
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     $data = [];
@@ -39,7 +38,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         LEFT JOIN td_peg pa ON o.fs_kd_petugas_approved = pa.fs_kd_peg
         WHERE o.fb_approved = 1
           AND o.fb_ditolak = 0
-          AND IFNULL(o.fb_verified_hrd, 0) = 0
+          AND NOT EXISTS (
+              SELECT 1
+              FROM td_trs_cuti c
+              WHERE c.fs_kd_trs_order = o.fs_kd_trs
+          )
         ORDER BY o.fd_tgl_trs DESC
     ";
 
@@ -77,14 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-
     $q = mysqli_query($conn, "
         SELECT *
         FROM td_trs_order_cuti
         WHERE fs_kd_trs = '$kd_trs'
           AND fb_approved = 1
           AND fb_ditolak = 0
-          AND IFNULL(fb_verified_hrd,0) = 0
         LIMIT 1
     ");
 
@@ -93,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$order) {
         echo json_encode([
             "status" => false,
-            "message" => "Data cuti tidak valid / sudah diverifikasi"
+            "message" => "Data cuti tidak valid"
         ]);
         exit;
     }
@@ -133,13 +134,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         exit;
     }
-
-   
-    mysqli_query($conn, "
-        UPDATE td_trs_order_cuti
-        SET fb_verified_hrd = 1
-        WHERE fs_kd_trs = '$kd_trs'
-    ");
 
     echo json_encode([
         "status" => true,
