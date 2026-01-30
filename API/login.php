@@ -1,4 +1,5 @@
 <?php
+session_start();
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -101,6 +102,11 @@ if ($kd_lokasi === 'L003') {
     $role = 'PEGAWAI';
 }
 
+$_SESSION['username']  = $username_db;
+$_SESSION['kd_peg']    = $kd_peg;
+$_SESSION['role']      = $role;
+$_SESSION['kd_lokasi'] = $kd_lokasi;
+
 echo json_encode([
     "status" => true,
     "message" => "Login berhasil",
@@ -114,4 +120,3 @@ echo json_encode([
         "jml_bawahan" => (int)$jml_bawahan
     ]
 ]);
-
