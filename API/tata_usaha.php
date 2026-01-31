@@ -12,6 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+require_once "../config/database.php";
+
 $username = trim($_POST['username'] ?? '');
 $judul_surat = trim($_POST['judul_surat'] ?? '');
 $id_ditujukan_ke = trim($_POST['id_ditujukan_ke'] ?? '');
@@ -85,17 +87,69 @@ if (!empty($_FILES['file_surat']['name'])) {
     $upload_file = true;
 }
 
-echo json_encode([
-    "status" => true,
-    "tahap" => "sukses",
-    "message" => "Surat berhasil dikirim",
-    "data" => [
-        "judul_surat"     => $judul_surat,
-        "id_ditujukan_ke" => $id_ditujukan_ke,
-        "upload_file"     => $upload_file,
-        "nama_file"       => $nama_file,
-        "tgl_surat"       => $tgl_surat,
-        "tgl_jam_trs"     => $tgl_jam_trs,
-        "user_input"      => $username
-    ]
-]);
+$conn->begin_transaction();
+
+try {
+    $sqlSurat = "
+        INSERT INTO hrdm_surat 
+        (tgl_surat, tgl_jam_trs, judul_surat, nama_file, id_ditujukan_ke, user_input)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ";
+    $stmtSurat = $conn->prepare($sqlSurat);
+    $stmtSurat->bind_param(
+        "ssssis",
+        $tgl_surat,
+        $tgl_jam_trs,
+        $judul_surat,
+        $nama_file,
+        $id_ditujukan_ke,
+        $username
+    );
+    $stmtSurat->execute();
+
+    $id_surat = $stmtSurat->insert_id;
+
+    if ($id_ditujukan_ke === '-1') {
+        $resPeg = $conn->query("SELECT fs_kd_peg FROM td_peg");
+        while ($row = $resPeg->fetch_assoc()) {
+            $stmtTujuan = $conn->prepare("
+                INSERT INTO hrdm_surat_ditujukan_ke (id_surat, kd_peg)
+                VALUES (?, ?)
+            ");
+            $stmtTujuan->bind_param("is", $id_surat, $row['fs_kd_peg']);
+            $stmtTujuan->execute();
+        }
+    } else {
+        $stmtTujuan = $conn->prepare("
+            INSERT INTO hrdm_surat_ditujukan_ke (id_surat, kd_peg)
+            VALUES (?, ?)
+        ");
+        $stmtTujuan->bind_param("is", $id_surat, $id_ditujukan_ke);
+        $stmtTujuan->execute();
+    }
+
+    $conn->commit();
+
+    echo json_encode([
+        "status" => true,
+        "tahap" => "sukses",
+        "message" => "Surat berhasil dikirim",
+        "data" => [
+            "id_surat" => $id_surat,
+            "judul_surat" => $judul_surat,
+            "id_ditujukan_ke" => $id_ditujukan_ke,
+            "upload_file" => $upload_file,
+            "nama_file" => $nama_file,
+            "tgl_surat" => $tgl_surat,
+            "tgl_jam_trs" => $tgl_jam_trs,
+            "user_input" => $username
+        ]
+    ]);
+} catch (Exception $e) {
+    $conn->rollback();
+    echo json_encode([
+        "status" => false,
+        "message" => "Gagal menyimpan surat"
+    ]);
+}
+ 
