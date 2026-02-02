@@ -3,7 +3,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
@@ -18,138 +18,118 @@ $username = trim($_POST['username'] ?? '');
 $judul_surat = trim($_POST['judul_surat'] ?? '');
 $id_ditujukan_ke = trim($_POST['id_ditujukan_ke'] ?? '');
 
+if ($username === '' || $judul_surat === '' || $id_ditujukan_ke === '') {
+    echo json_encode([
+        "status" => false,
+        "message" => "Data wajib tidak lengkap"
+    ]);
+    exit;
+}
+
 $tgl_surat = date('Y-m-d');
 $tgl_jam_trs = date('Y-m-d H:i:s');
 
-if ($username === '') {
-    echo json_encode([
-        "status" => false,
-        "tahap" => "login",
-        "message" => "Belum Login"
-    ]);
-    exit;
-}
-
-if ($judul_surat === '' || $id_ditujukan_ke === '') {
-    echo json_encode([
-        "status" => false,
-        "tahap" => "validasi",
-        "message" => "Judul surat dan tujuan wajib diisi"
-    ]);
-    exit;
-}
-
 $nama_file = null;
-$upload_file = false;
 
-if (!empty($_FILES['file_surat']['name'])) {
-    $folder_upload = "../uploads/surat/";
+if (isset($_FILES['file_surat']) && $_FILES['file_surat']['error'] === 0) {
 
-    if (!is_dir($folder_upload)) {
-        mkdir($folder_upload, 0777, true);
-    }
+    $ext = pathinfo($_FILES['file_surat']['name'], PATHINFO_EXTENSION);
+    $allowed = ['pdf'];
 
-    $ext = strtolower(pathinfo($_FILES['file_surat']['name'], PATHINFO_EXTENSION));
-    $allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx'];
-
-    if (!in_array($ext, $allowed)) {
+    if (!in_array(strtolower($ext), $allowed)) {
         echo json_encode([
             "status" => false,
-            "tahap" => "upload",
-            "message" => "Tipe file tidak diizinkan"
+            "message" => "Hanya file PDF yang diperbolehkan"
         ]);
         exit;
     }
 
-    if ($_FILES['file_surat']['size'] > 5 * 1024 * 1024) {
+    $folder = "../uploads/surat/";
+    if (!is_dir($folder)) {
+        mkdir($folder, 0777, true);
+    }
+
+    $nama_file = "surat_" . time() . "_" . rand(100,999) . "." . $ext;
+    $path = $folder . $nama_file;
+
+    if (!move_uploaded_file($_FILES['file_surat']['tmp_name'], $path)) {
         echo json_encode([
             "status" => false,
-            "tahap" => "upload",
-            "message" => "Ukuran file maksimal 5MB"
+            "message" => "Gagal menyimpan file ke server"
         ]);
         exit;
     }
-
-    $nama_file = "surat_" . time() . "." . $ext;
-
-    if (!move_uploaded_file(
-        $_FILES['file_surat']['tmp_name'],
-        $folder_upload . $nama_file
-    )) {
-        echo json_encode([
-            "status" => false,
-            "tahap" => "upload",
-            "message" => "Gagal upload file"
-        ]);
-        exit;
-    }
-
-    $upload_file = true;
 }
+
 
 $conn->begin_transaction();
 
 try {
-    $sqlSurat = "
-        INSERT INTO hrdm_surat 
-        (tgl_surat, tgl_jam_trs, judul_surat, nama_file, id_ditujukan_ke, user_input)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ";
-    $stmtSurat = $conn->prepare($sqlSurat);
-    $stmtSurat->bind_param(
-        "ssssis",
+
+    $stmt = $conn->prepare("
+        INSERT INTO hrdm_surat
+        (tgl_surat, tgl_jam_trs, judul_surat, nama_file, user_input)
+        VALUES (?, ?, ?, ?, ?)
+    ");
+
+    $stmt->bind_param(
+        "sssss",
         $tgl_surat,
         $tgl_jam_trs,
         $judul_surat,
         $nama_file,
-        $id_ditujukan_ke,
         $username
     );
-    $stmtSurat->execute();
 
-    $id_surat = $stmtSurat->insert_id;
+    $stmt->execute();
+    $id_surat = $stmt->insert_id;
 
+ 
     if ($id_ditujukan_ke === '-1') {
-        $resPeg = $conn->query("SELECT fs_kd_peg FROM td_peg");
-        while ($row = $resPeg->fetch_assoc()) {
-            $stmtTujuan = $conn->prepare("
-                INSERT INTO hrdm_surat_ditujukan_ke (id_surat, kd_peg)
+
+        $q = $conn->query("SELECT fs_kd_peg FROM td_peg");
+        while ($r = $q->fetch_assoc()) {
+
+            $stmt2 = $conn->prepare("
+                INSERT INTO hrdm_surat_ditujukan_ke
+                (id_surat, kd_peg)
                 VALUES (?, ?)
             ");
-            $stmtTujuan->bind_param("is", $id_surat, $row['fs_kd_peg']);
-            $stmtTujuan->execute();
+
+            $stmt2->bind_param("is", $id_surat, $r['fs_kd_peg']);
+            $stmt2->execute();
         }
+
     } else {
-        $stmtTujuan = $conn->prepare("
-            INSERT INTO hrdm_surat_ditujukan_ke (id_surat, kd_peg)
+
+        $stmt2 = $conn->prepare("
+            INSERT INTO hrdm_surat_ditujukan_ke
+            (id_surat, kd_peg)
             VALUES (?, ?)
         ");
-        $stmtTujuan->bind_param("is", $id_surat, $id_ditujukan_ke);
-        $stmtTujuan->execute();
+
+        $stmt2->bind_param("is", $id_surat, $id_ditujukan_ke);
+        $stmt2->execute();
     }
 
     $conn->commit();
 
     echo json_encode([
         "status" => true,
-        "tahap" => "sukses",
-        "message" => "Surat berhasil dikirim",
-        "data" => [
-            "id_surat" => $id_surat,
-            "judul_surat" => $judul_surat,
-            "id_ditujukan_ke" => $id_ditujukan_ke,
-            "upload_file" => $upload_file,
-            "nama_file" => $nama_file,
-            "tgl_surat" => $tgl_surat,
-            "tgl_jam_trs" => $tgl_jam_trs,
-            "user_input" => $username
-        ]
+        "message" => "Surat berhasil dikirim"
     ]);
+
 } catch (Exception $e) {
+
     $conn->rollback();
+
+    if ($nama_file && file_exists("../uploads/surat/" . $nama_file)) {
+        unlink("../uploads/surat/" . $nama_file);
+    }
+
     echo json_encode([
         "status" => false,
-        "message" => "Gagal menyimpan surat"
+        "message" => "Gagal menyimpan surat",
+        "error" => $e->getMessage()
     ]);
 }
- 

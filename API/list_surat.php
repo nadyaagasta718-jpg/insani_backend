@@ -15,6 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once "../config/database.php";
 
 
+$BASE_URL = "http://localhost/api";
+$UPLOAD_PATH = "$BASE_URL/uploads/surat/";
+
 $kdPeg = trim($_GET['kdPeg'] ?? '');
 
 if ($kdPeg === '') {
@@ -25,7 +28,6 @@ if ($kdPeg === '') {
     exit;
 }
 
-
 $sql = "
     SELECT DISTINCT
         s.id_surat,
@@ -35,9 +37,11 @@ $sql = "
         s.nama_file,
         s.user_input
     FROM hrdm_surat s
-    INNER JOIN hrdm_surat_ditujukan_ke d
+    LEFT JOIN hrdm_surat_ditujukan_ke d
         ON s.id_surat = d.id_surat
-    WHERE d.kd_peg = ?
+    WHERE
+        s.id_ditujukan_ke = '-1'
+        OR d.kd_peg = ?
     ORDER BY s.tgl_jam_trs DESC
 ";
 
@@ -46,16 +50,23 @@ $stmt->bind_param("s", $kdPeg);
 $stmt->execute();
 
 $result = $stmt->get_result();
-
 $data = [];
+
 while ($row = $result->fetch_assoc()) {
+
+    $fileUrl = null;
+    if (!empty($row['nama_file'])) {
+        $fileUrl = $UPLOAD_PATH . $row['nama_file'];
+    }
+
     $data[] = [
-        "id_surat"     => $row['id_surat'],
-        "judul_surat"  => $row['judul_surat'],
-        "tgl_surat"    => $row['tgl_surat'],
-        "tgl_jam_trs"  => $row['tgl_jam_trs'],
-        "nama_file"    => $row['nama_file'],
-        "user_input"   => $row['user_input']
+        "id_surat"    => $row['id_surat'],
+        "judul_surat" => $row['judul_surat'],
+        "tgl_surat"   => $row['tgl_surat'],
+        "tgl_jam_trs" => $row['tgl_jam_trs'],
+        "nama_file"   => $row['nama_file'],
+        "file_url"    => $fileUrl,
+        "user_input"  => $row['user_input'],
     ];
 }
 
