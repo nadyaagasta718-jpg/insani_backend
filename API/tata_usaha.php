@@ -16,12 +16,23 @@ require_once "../config/database.php";
 
 $username = trim($_POST['username'] ?? '');
 $judul_surat = trim($_POST['judul_surat'] ?? '');
-$id_ditujukan_ke = trim($_POST['id_ditujukan_ke'] ?? '');
+$id_ditujukan_ke = $_POST['id_ditujukan_ke'] ?? '';
 
 if ($username === '' || $judul_surat === '' || $id_ditujukan_ke === '') {
     echo json_encode([
         "status" => false,
         "message" => "Data wajib tidak lengkap"
+    ]);
+    exit;
+}
+
+/* decode array dari flutter */
+$tujuanList = json_decode($id_ditujukan_ke, true);
+
+if (!is_array($tujuanList) || count($tujuanList) == 0) {
+    echo json_encode([
+        "status" => false,
+        "message" => "Tujuan surat tidak valid"
     ]);
     exit;
 }
@@ -33,13 +44,13 @@ $nama_file = null;
 
 if (isset($_FILES['file_surat']) && $_FILES['file_surat']['error'] === 0) {
 
-    $ext = pathinfo($_FILES['file_surat']['name'], PATHINFO_EXTENSION);
-    $allowed = ['pdf'];
+    $ext = strtolower(pathinfo($_FILES['file_surat']['name'], PATHINFO_EXTENSION));
+    $allowed = ['pdf','doc','docx','xls','xlsx','jpg','jpeg','png'];
 
-    if (!in_array(strtolower($ext), $allowed)) {
+    if (!in_array($ext, $allowed)) {
         echo json_encode([
             "status" => false,
-            "message" => "Hanya file PDF yang diperbolehkan"
+            "message" => "Format file tidak diperbolehkan"
         ]);
         exit;
     }
@@ -50,66 +61,53 @@ if (isset($_FILES['file_surat']) && $_FILES['file_surat']['error'] === 0) {
     }
 
     $nama_file = "surat_" . time() . "_" . rand(100,999) . "." . $ext;
-    $path = $folder . $nama_file;
 
-    if (!move_uploaded_file($_FILES['file_surat']['tmp_name'], $path)) {
+    if (!move_uploaded_file($_FILES['file_surat']['tmp_name'], $folder.$nama_file)) {
         echo json_encode([
             "status" => false,
-            "message" => "Gagal menyimpan file ke server"
+            "message" => "Gagal upload file"
         ]);
         exit;
     }
 }
 
-
 $conn->begin_transaction();
 
 try {
 
+    /* flag tujuan */
+    $flag_tujuan = in_array('-1', $tujuanList) ? -1 : 0;
+
     $stmt = $conn->prepare("
         INSERT INTO hrdm_surat
-        (tgl_surat, tgl_jam_trs, judul_surat, nama_file, user_input)
-        VALUES (?, ?, ?, ?, ?)
+        (tgl_surat, tgl_jam_trs, judul_surat, nama_file, id_ditujukan_ke, user_input)
+        VALUES (?, ?, ?, ?, ?, ?)
     ");
 
     $stmt->bind_param(
-        "sssss",
+        "ssssss",
         $tgl_surat,
         $tgl_jam_trs,
         $judul_surat,
         $nama_file,
+        $flag_tujuan,
         $username
     );
 
     $stmt->execute();
     $id_surat = $stmt->insert_id;
 
- 
-    if ($id_ditujukan_ke === '-1') {
-
-        $q = $conn->query("SELECT fs_kd_peg FROM td_peg");
-        while ($r = $q->fetch_assoc()) {
-
-            $stmt2 = $conn->prepare("
-                INSERT INTO hrdm_surat_ditujukan_ke
-                (id_surat, kd_peg)
-                VALUES (?, ?)
-            ");
-
-            $stmt2->bind_param("is", $id_surat, $r['fs_kd_peg']);
-            $stmt2->execute();
-        }
-
-    } else {
-
+    /* SIMPAN PERORANGAN / MULTI */
+    if ($flag_tujuan === 0) {
         $stmt2 = $conn->prepare("
-            INSERT INTO hrdm_surat_ditujukan_ke
-            (id_surat, kd_peg)
+            INSERT INTO hrdm_surat_ditujukan_ke (id_surat, kd_peg)
             VALUES (?, ?)
         ");
 
-        $stmt2->bind_param("is", $id_surat, $id_ditujukan_ke);
-        $stmt2->execute();
+        foreach ($tujuanList as $kdPeg) {
+            $stmt2->bind_param("is", $id_surat, $kdPeg);
+            $stmt2->execute();
+        }
     }
 
     $conn->commit();
@@ -123,13 +121,12 @@ try {
 
     $conn->rollback();
 
-    if ($nama_file && file_exists("../uploads/surat/" . $nama_file)) {
-        unlink("../uploads/surat/" . $nama_file);
+    if ($nama_file && file_exists("../uploads/surat/".$nama_file)) {
+        unlink("../uploads/surat/".$nama_file);
     }
 
     echo json_encode([
         "status" => false,
-        "message" => "Gagal menyimpan surat",
-        "error" => $e->getMessage()
+        "message" => "Gagal menyimpan surat"
     ]);
 }
