@@ -28,20 +28,24 @@ if ($kdPeg === '') {
 }
 
 $sql = "
-    SELECT DISTINCT
-        s.id_surat,
-        s.judul_surat,
-        s.tgl_surat,
-        s.tgl_jam_trs,
-        s.nama_file,
-        s.user_input,
-        s.id_ditujukan_ke
-    FROM hrdm_surat s
-    LEFT JOIN hrdm_surat_ditujukan_ke d
-        ON s.id_surat = d.id_surat
-    WHERE s.id_ditujukan_ke = -1
-       OR d.kd_peg = ?
-    ORDER BY s.tgl_jam_trs DESC
+  SELECT
+    s.id_surat,
+    s.judul_surat,
+    s.tgl_surat,
+    s.tgl_jam_trs,
+    s.nama_file,
+    s.user_input,
+    s.id_ditujukan_ke
+FROM hrdm_surat s
+WHERE
+    s.id_ditujukan_ke = -1
+    OR EXISTS (
+        SELECT 1
+        FROM hrdm_surat_ditujukan_ke d
+        WHERE d.id_surat = s.id_surat
+          AND CAST(d.kd_peg AS CHAR) = ?
+    )
+ORDER BY s.tgl_jam_trs DESC
 ";
 
 $stmt = $conn->prepare($sql);
@@ -95,3 +99,4 @@ echo json_encode([
 ]);
 
 
+  

@@ -26,7 +26,6 @@ if ($username === '' || $judul_surat === '' || $id_ditujukan_ke === '') {
     exit;
 }
 
-/* decode array dari flutter */
 $tujuanList = json_decode($id_ditujukan_ke, true);
 
 if (!is_array($tujuanList) || count($tujuanList) == 0) {
@@ -75,7 +74,7 @@ $conn->begin_transaction();
 
 try {
 
-    /* flag tujuan */
+    
     $flag_tujuan = in_array('-1', $tujuanList) ? -1 : 0;
 
     $stmt = $conn->prepare("
@@ -97,7 +96,7 @@ try {
     $stmt->execute();
     $id_surat = $stmt->insert_id;
 
-    /* SIMPAN PERORANGAN / MULTI */
+   
     if ($flag_tujuan === 0) {
         $stmt2 = $conn->prepare("
             INSERT INTO hrdm_surat_ditujukan_ke (id_surat, kd_peg)

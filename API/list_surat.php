@@ -29,7 +29,6 @@ $data = [];
 
 try {
 
-    
     if ($role === 'tu') {
 
         $sql = "
@@ -49,10 +48,7 @@ try {
         $stmt->execute();
         $result = $stmt->get_result();
 
-    }
-
-
-    else {
+    } else {
 
         $sql = "
             SELECT DISTINCT
@@ -67,8 +63,8 @@ try {
             LEFT JOIN hrdm_surat_ditujukan_ke d
                 ON s.id_surat = d.id_surat
             WHERE
-                s.id_ditujukan_ke = -1
-                OR d.kd_peg = ?
+                (s.id_ditujukan_ke = -1)
+                OR (d.kd_peg = ?)
             ORDER BY s.tgl_jam_trs DESC
         ";
 
@@ -78,11 +74,9 @@ try {
         $result = $stmt->get_result();
     }
 
-
     while ($row = $result->fetch_assoc()) {
 
-     
-        if ($row['id_ditujukan_ke'] == -1) {
+        if ((int)$row['id_ditujukan_ke'] === -1) {
             $tujuan = ["SEMUA PEGAWAI"];
         } else {
             $tujuan = [];
@@ -122,4 +116,3 @@ try {
         "message" => "Error: " . $e->getMessage()
     ]);
 }
-
