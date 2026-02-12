@@ -1,25 +1,44 @@
 <?php
-error_reporting(0);
-ini_set('display_errors', 0);
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
+header("Content-Type: application/json");
+
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
 
-header("Content-Type: application/json");
 
-require_once "../config/database.php";
+$servername = "sql204.infinityfree.com";
+$usernameDB = "if0_41094572";
+$passwordDB = "1ns4n1r51";
+$dbname     = "if0_41094572_db_insani";
 
-$username   = $_POST['username'] ?? '';
-$password   = $_POST['password'] ?? '';
-$fs_kd_peg  = $_POST['fs_kd_peg'] ?? '';
 
-if ($username == '' || $password == '' || $fs_kd_peg == '') {
+$conn = new mysqli($servername, $usernameDB, $passwordDB, $dbname);
+
+
+if ($conn->connect_error) {
+    echo json_encode([
+        "status" => false,
+        "message" => "Koneksi database gagal: " . $conn->connect_error
+    ]);
+    exit;
+}
+
+
+$username  = trim($_POST['username'] ?? '');
+$password  = $_POST['password'] ?? '';
+$fs_kd_peg = trim($_POST['fs_kd_peg'] ?? '');
+
+
+if ($username === '' || $password === '' || $fs_kd_peg === '') {
     echo json_encode([
         "status" => false,
         "message" => "Lengkapi data!"
@@ -27,25 +46,30 @@ if ($username == '' || $password == '' || $fs_kd_peg == '') {
     exit;
 }
 
-$password_hash = md5($password);
 
+$stmt = $conn->prepare("SELECT 1 FROM hrdm_user WHERE username = ? LIMIT 1");
+$stmt->bind_param("s", $username);
+$stmt->execute();
+$stmt->store_result();
 
-$check_sql = "SELECT * FROM hrdm_user WHERE username='$username' LIMIT 1";
-$check_q   = mysqli_query($conn, $check_sql);
-
-if (mysqli_num_rows($check_q) > 0) {
+if ($stmt->num_rows > 0) {
     echo json_encode([
         "status" => false,
         "message" => "Username sudah terdaftar!"
     ]);
+    $stmt->close();
+    $conn->close();
     exit;
 }
+$stmt->close();
+
+$password_hash = password_hash($password, PASSWORD_DEFAULT);
 
 
-$insert_sql = "INSERT INTO hrdm_user (kd_peg, username, password, is_aktif)
-               VALUES ('$fs_kd_peg', '$username', '$password_hash', 1)";
+$stmt = $conn->prepare("INSERT INTO hrdm_user (kd_peg, username, password, is_aktif) VALUES (?, ?, ?, 1)");
+$stmt->bind_param("sss", $fs_kd_peg, $username, $password_hash);
 
-if (mysqli_query($conn, $insert_sql)) {
+if ($stmt->execute()) {
     echo json_encode([
         "status" => true,
         "message" => "Register berhasil!"
@@ -53,7 +77,12 @@ if (mysqli_query($conn, $insert_sql)) {
 } else {
     echo json_encode([
         "status" => false,
-        "message" => "Gagal register: " . mysqli_error($conn)
+        "message" => "Gagal register: " . $stmt->error
     ]);
 }
 
+
+$stmt->close();
+$conn->close();
+exit;
+?>

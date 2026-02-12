@@ -1,25 +1,32 @@
 <?php
-
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
+$servername = "sql204.infinityfree.com";
+$usernameDB = "if0_41094572";
+$passwordDB = "1ns4n1r51";
+$dbname     = "if0_41094572_db_insani";
 
-require_once "../config/database.php";
+$conn = new mysqli($servername, $usernameDB, $passwordDB, $dbname);
 
+if ($conn->connect_error) {
+    echo json_encode([
+        "status" => false,
+        "message" => "Koneksi database gagal: " . $conn->connect_error
+    ]);
+    exit;
+}
 
 $action = $_GET['action'] ?? '';
 
-
 if ($action === 'get') {
-
     $kd_peg = $_GET['kd_peg'] ?? '';
 
-    if (empty($kd_peg)) {
+    if ($kd_peg === '') {
         echo json_encode([
             "status" => false,
             "message" => "Kode pegawai kosong"
@@ -27,7 +34,6 @@ if ($action === 'get') {
         exit;
     }
 
-   
     $sql = "
         SELECT 
             p.fs_nm_peg,
@@ -42,16 +48,16 @@ if ($action === 'get') {
         LIMIT 1
     ";
 
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "s", $kd_peg);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $kd_peg);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-    if ($row = mysqli_fetch_assoc($result)) {
+    if ($row = $result->fetch_assoc()) {
         echo json_encode([
             "status" => true,
             "data" => [
-                "nm_peg"    => $row['fs_nm_peg'],     
+                "nm_peg"    => $row['fs_nm_peg'],
                 "nm_lokasi" => $row['fs_nm_lokasi'],
                 "nm_atasan" => $row['nm_atasan'] ?? '-'
             ]
@@ -63,19 +69,17 @@ if ($action === 'get') {
         ]);
     }
 
-    mysqli_stmt_close($stmt);
+    $stmt->close();
     exit;
 }
 
-
 if ($action === 'update_password') {
-
     $data = json_decode(file_get_contents("php://input"), true);
 
-    $kd_peg   = $data['kd_peg'] ?? '';
+    $kd_peg   = trim($data['kd_peg'] ?? '');
     $password = $data['password'] ?? '';
 
-    if (empty($kd_peg) || empty($password)) {
+    if ($kd_peg === '' || $password === '') {
         echo json_encode([
             "status" => false,
             "message" => "Data tidak lengkap"
@@ -83,13 +87,12 @@ if ($action === 'update_password') {
         exit;
     }
 
-
-    $hash = md5($password);
+    $hash = password_hash($password, PASSWORD_DEFAULT);
 
     $sql = "UPDATE hrdm_user SET password = ? WHERE kd_peg = ?";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "ss", $hash, $kd_peg);
-    $success = mysqli_stmt_execute($stmt);
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $hash, $kd_peg);
+    $success = $stmt->execute();
 
     if ($success) {
         echo json_encode([
@@ -103,13 +106,15 @@ if ($action === 'update_password') {
         ]);
     }
 
-    mysqli_stmt_close($stmt);
+    $stmt->close();
     exit;
 }
-
 
 echo json_encode([
     "status" => false,
     "message" => "Action tidak dikenali"
 ]);
+
+$conn->close();
 exit;
+?>

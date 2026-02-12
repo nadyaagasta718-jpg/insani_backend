@@ -1,5 +1,4 @@
 <?php
-session_start();
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -10,13 +9,26 @@ header("Content-Type: application/json");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
+    exit();
+}
+session_start();
+$servername = "sql204.infinityfree.com";
+$usernameDB = "if0_41094572";
+$passwordDB = "1ns4n1r51";
+$dbname     = "if0_41094572_db_insani";
+
+$conn = new mysqli($servername, $usernameDB, $passwordDB, $dbname);
+
+if ($conn->connect_error) {
+    echo json_encode([
+        "status" => false,
+        "message" => "Koneksi database gagal: " . $conn->connect_error
+    ]);
     exit;
 }
 
-require_once "../config/database.php";
-
 $username = trim($_POST['username'] ?? '');
-$password = trim($_POST['password'] ?? '');
+$password = $_POST['password'] ?? '';
 
 if ($username === '' || $password === '') {
     echo json_encode([
@@ -51,7 +63,7 @@ $stmt = $conn->prepare($sql);
 if (!$stmt) {
     echo json_encode([
         "status" => false,
-        "error" => $conn->error
+        "message" => "Query error: ".$conn->error
     ]);
     exit;
 }
@@ -65,6 +77,7 @@ if ($stmt->num_rows !== 1) {
         "status" => false,
         "message" => "Username atau password salah"
     ]);
+    $stmt->close();
     exit;
 }
 
@@ -77,17 +90,23 @@ $stmt->bind_result(
     $nm_lokasi,
     $jml_bawahan
 );
-
 $stmt->fetch();
+$stmt->close();
 
 if (strlen($password_db) === 32) {
     if (md5($password) !== $password_db) {
-        echo json_encode(["status"=>false,"message"=>"Username atau password salah"]);
+        echo json_encode([
+            "status" => false,
+            "message" => "Username atau password salah"
+        ]);
         exit;
     }
 } else {
     if (!password_verify($password, $password_db)) {
-        echo json_encode(["status"=>false,"message"=>"Username atau password salah"]);
+        echo json_encode([
+            "status" => false,
+            "message" => "Username atau password salah"
+        ]);
         exit;
     }
 }
@@ -120,3 +139,6 @@ echo json_encode([
         "jml_bawahan" => (int)$jml_bawahan
     ]
 ]);
+$conn->close();
+exit;
+?>

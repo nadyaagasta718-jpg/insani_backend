@@ -12,9 +12,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-require_once "../config/database.php";
+$servername = "sql204.infinityfree.com";
+$usernameDB = "if0_41094572";
+$passwordDB = "1ns4n1r51";
+$dbname     = "if0_41094572_db_insani";
+
+$conn = new mysqli($servername, $usernameDB, $passwordDB, $dbname);
+
+if ($conn->connect_error) {
+    echo json_encode([
+        "status" => false,
+        "message" => "Koneksi database gagal: " . $conn->connect_error
+    ]);
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+
+    $kd_atasan = $_GET['kd_peg'] ?? '';
+
+    if ($kd_atasan == '') {
+        echo json_encode([
+            "status" => false,
+            "message" => "Kode atasan tidak boleh kosong"
+        ]);
+        exit;
+    }
 
     $data = [];
 
@@ -23,32 +46,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             o.fs_kd_trs,
             o.fs_kd_peg,
             p.fs_nm_peg,
-            p.fs_kd_lokasi,
-            l.fs_nm_lokasi,
             j.fs_nm_jenis_cuti,
             o.fd_tgl_mulai,
             o.fd_tgl_akhir,
-            o.fs_keterangan,
-            o.fs_kd_petugas_approved,
-            pa.fs_nm_peg AS fs_nm_atasan
+            o.fs_keterangan
         FROM td_trs_order_cuti o
         JOIN td_peg p ON o.fs_kd_peg = p.fs_kd_peg
         JOIN td_jenis_cuti j ON o.fs_kd_jenis_cuti = j.fs_kd_jenis_cuti
-        LEFT JOIN td_lokasi l ON p.fs_kd_lokasi = l.fs_kd_lokasi
-        LEFT JOIN td_peg pa ON o.fs_kd_petugas_approved = pa.fs_kd_peg
-        WHERE o.fb_approved = 1
+        WHERE o.fs_kd_peg_atasan = '$kd_atasan'
+          AND o.fb_approved = 0
           AND o.fb_ditolak = 0
-          AND NOT EXISTS (
-              SELECT 1
-              FROM td_trs_cuti c
-              WHERE c.fs_kd_trs_order = o.fs_kd_trs
-          )
         ORDER BY o.fd_tgl_trs DESC
     ";
 
-    $q = mysqli_query($conn, $sql);
+    $query = mysqli_query($conn, $sql);
 
-    if (!$q) {
+    if (!$query) {
         echo json_encode([
             "status" => false,
             "message" => "Query gagal",
@@ -57,8 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
-    while ($r = mysqli_fetch_assoc($q)) {
-        $data[] = $r;
+    while ($row = mysqli_fetch_assoc($query)) {
+        $data[] = $row;
     }
 
     echo json_encode([
@@ -70,74 +83,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $kd_trs = $_POST['fs_kd_trs'] ?? '';
+    $kd_trs_order = $_POST['fs_kd_trs'] ?? '';
+    $kd_atasan    = $_POST['fs_kd_peg_atasan'] ?? '';
+    $action       = $_POST['action'] ?? '';
 
-    if ($kd_trs == '') {
+    if ($kd_trs_order == '' || $kd_atasan == '') {
         echo json_encode([
             "status" => false,
-            "message" => "Kode transaksi wajib diisi"
+            "message" => "Kode cuti dan kode atasan tidak boleh kosong"
         ]);
         exit;
     }
 
-    $q = mysqli_query($conn, "
+    $sql_order = "
         SELECT *
         FROM td_trs_order_cuti
-        WHERE fs_kd_trs = '$kd_trs'
-          AND fb_approved = 1
+        WHERE fs_kd_trs = '$kd_trs_order'
+          AND fs_kd_peg_atasan = '$kd_atasan'
+          AND fb_approved = 0
           AND fb_ditolak = 0
-        LIMIT 1
-    ");
+    ";
 
-    $order = mysqli_fetch_assoc($q);
+    $query_order = mysqli_query($conn, $sql_order);
+    $order = mysqli_fetch_assoc($query_order);
 
     if (!$order) {
         echo json_encode([
             "status" => false,
-            "message" => "Data cuti tidak valid"
+            "message" => "Order cuti tidak ditemukan"
         ]);
         exit;
     }
 
-    $insert = mysqli_query($conn, "
-        INSERT INTO td_trs_cuti (
-            fs_kd_peg,
-            fs_kd_trs_order,
-            fs_kd_jenis_cuti,
-            fs_keterangan,
-            fd_tgl_mulai,
-            fs_jam_mulai,
-            fd_tgl_akhir,
-            fs_jam_akhir,
-            fd_tgl_trs,
-            fs_jam_trs,
-            fs_kd_petugas
-        ) VALUES (
-            '{$order['fs_kd_peg']}',
-            '{$order['fs_kd_trs']}',
-            '{$order['fs_kd_jenis_cuti']}',
-            '{$order['fs_keterangan']}',
-            '{$order['fd_tgl_mulai']}',
-            '00:00:00',
-            '{$order['fd_tgl_akhir']}',
-            '23:59:59',
-            CURDATE(),
-            CURTIME(),
-            '{$order['fs_kd_petugas_approved']}'
-        )
-    ");
+    if ($action === 'approve') {
+        mysqli_query($conn, "
+            UPDATE td_trs_order_cuti
+            SET 
+                fb_approved = 1,
+                fs_kd_petugas_approved = '$kd_atasan',
+                fd_tgl_trs_approved = CURDATE(),
+                fs_jam_trs_approved = CURTIME()
+            WHERE fs_kd_trs = '$kd_trs_order'
+              AND fs_kd_peg_atasan = '$kd_atasan'
+              AND fb_approved = 0
+              AND fb_ditolak = 0
+        ");
 
-    if (!$insert) {
         echo json_encode([
-            "status" => false,
-            "message" => mysqli_error($conn)
+            "status" => true,
+            "message" => "Cuti berhasil disetujui atasan"
+        ]);
+        exit;
+    }
+
+    if ($action === 'reject') {
+        $alasan = $_POST['alasan'] ?? '';
+
+        if ($alasan == '') {
+            echo json_encode([
+                "status" => false,
+                "message" => "Alasan penolakan wajib diisi"
+            ]);
+            exit;
+        }
+
+        mysqli_query($conn, "
+            UPDATE td_trs_order_cuti
+            SET fb_ditolak = 1,
+                fs_alasan_ditolak = '$alasan',
+                fd_tgl_trs_ditolak = CURDATE(),
+                fs_jam_trs_ditolak = CURTIME(),
+                fs_kd_petugas_ditolak = '$kd_atasan'
+            WHERE fs_kd_trs = '$kd_trs_order'
+              AND fs_kd_peg_atasan = '$kd_atasan'
+        ");
+
+        echo json_encode([
+            "status" => true,
+            "message" => "Cuti berhasil ditolak"
         ]);
         exit;
     }
 
     echo json_encode([
-        "status" => true,
-        "message" => "Cuti berhasil diverifikasi HRD"
+        "status" => false,
+        "message" => "Action tidak dikenali"
     ]);
     exit;
 }
@@ -146,3 +176,7 @@ echo json_encode([
     "status" => false,
     "message" => "Method tidak dikenali"
 ]);
+
+$conn->close();
+exit;
+?>

@@ -1,5 +1,9 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
 require_once "../config/database.php";
@@ -20,13 +24,27 @@ $sql = "
     LIMIT 1
 ";
 
-$result = $conn->query($sql);
+$stmt = $conn->prepare($sql);
+
+if(!$stmt){
+    echo json_encode([
+        "status" => false,
+        "message" => "Prepare statement gagal: ". $conn->error
+    ]);
+    exit;
+}
+
+$stmt->execute();
+$result = $stmt->get_result();
 
 if ($row = $result->fetch_assoc()) {
     $data = $row;
 }
 
+$stmt->close();
+
 echo json_encode([
     "status" => true,
-    "data" => $data
+    "data"   => $data
 ]);
+?>

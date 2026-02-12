@@ -5,17 +5,30 @@ ini_set('display_errors', 1);
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json");
+header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-require_once "../config/database.php";
+$servername = "sql204.infinityfree.com";
+$usernameDB = "if0_41094572";
+$passwordDB = "1ns4n1r51";
+$dbname     = "if0_41094572_db_insani";
 
-$username = trim($_POST['username'] ?? '');
-$judul_surat = trim($_POST['judul_surat'] ?? '');
+$conn = new mysqli($servername, $usernameDB, $passwordDB, $dbname);
+
+if ($conn->connect_error) {
+    echo json_encode([
+        "status" => false,
+        "message" => "Koneksi database gagal: " . $conn->connect_error
+    ]);
+    exit;
+}
+
+$username        = trim($_POST['username'] ?? '');
+$judul_surat     = trim($_POST['judul_surat'] ?? '');
 $id_ditujukan_ke = $_POST['id_ditujukan_ke'] ?? '';
 
 if ($username === '' || $judul_surat === '' || $id_ditujukan_ke === '') {
@@ -28,7 +41,7 @@ if ($username === '' || $judul_surat === '' || $id_ditujukan_ke === '') {
 
 $tujuanList = json_decode($id_ditujukan_ke, true);
 
-if (!is_array($tujuanList) || count($tujuanList) == 0) {
+if (!is_array($tujuanList) || count($tujuanList) === 0) {
     echo json_encode([
         "status" => false,
         "message" => "Tujuan surat tidak valid"
@@ -40,9 +53,7 @@ $tgl_surat = date('Y-m-d');
 $tgl_jam_trs = date('Y-m-d H:i:s');
 
 $nama_file = null;
-
-if (isset($_FILES['file_surat']) && $_FILES['file_surat']['error'] === 0) {
-
+if (!empty($_FILES['file_surat']) && $_FILES['file_surat']['error'] === 0) {
     $ext = strtolower(pathinfo($_FILES['file_surat']['name'], PATHINFO_EXTENSION));
     $allowed = ['pdf','doc','docx','xls','xlsx','jpg','jpeg','png'];
 
@@ -61,7 +72,7 @@ if (isset($_FILES['file_surat']) && $_FILES['file_surat']['error'] === 0) {
 
     $nama_file = "surat_" . time() . "_" . rand(100,999) . "." . $ext;
 
-    if (!move_uploaded_file($_FILES['file_surat']['tmp_name'], $folder.$nama_file)) {
+    if (!move_uploaded_file($_FILES['file_surat']['tmp_name'], $folder . $nama_file)) {
         echo json_encode([
             "status" => false,
             "message" => "Gagal upload file"
@@ -73,18 +84,15 @@ if (isset($_FILES['file_surat']) && $_FILES['file_surat']['error'] === 0) {
 $conn->begin_transaction();
 
 try {
-
-    
-    $flag_tujuan = in_array('-1', $tujuanList) ? -1 : 0;
+    $flag_tujuan = in_array('-1', $tujuanList, true) ? -1 : 0;
 
     $stmt = $conn->prepare("
         INSERT INTO hrdm_surat
         (tgl_surat, tgl_jam_trs, judul_surat, nama_file, id_ditujukan_ke, user_input)
         VALUES (?, ?, ?, ?, ?, ?)
     ");
-
     $stmt->bind_param(
-        "ssssss",
+        "ssssis",
         $tgl_surat,
         $tgl_jam_trs,
         $judul_surat,
@@ -92,17 +100,14 @@ try {
         $flag_tujuan,
         $username
     );
-
     $stmt->execute();
     $id_surat = $stmt->insert_id;
 
-   
     if ($flag_tujuan === 0) {
         $stmt2 = $conn->prepare("
             INSERT INTO hrdm_surat_ditujukan_ke (id_surat, kd_peg)
             VALUES (?, ?)
         ");
-
         foreach ($tujuanList as $kdPeg) {
             $stmt2->bind_param("is", $id_surat, $kdPeg);
             $stmt2->execute();
@@ -115,17 +120,21 @@ try {
         "status" => true,
         "message" => "Surat berhasil dikirim"
     ]);
+    exit;
 
-} catch (Exception $e) {
-
+} catch (Throwable $e) {
     $conn->rollback();
 
-    if ($nama_file && file_exists("../uploads/surat/".$nama_file)) {
-        unlink("../uploads/surat/".$nama_file);
+    if ($nama_file && file_exists("../uploads/surat/" . $nama_file)) {
+        unlink("../uploads/surat/" . $nama_file);
     }
 
     echo json_encode([
         "status" => false,
         "message" => "Gagal menyimpan surat"
     ]);
+    exit;
 }
+
+$conn->close();
+?>
